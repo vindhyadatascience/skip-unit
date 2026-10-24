@@ -8,6 +8,35 @@ typealias Test = org.junit.Test
 /// Alias for an org.junit.AssumptionViolatedException, which will skip a test in the same way as conditionally throwing XCTSkip
 typealias XCTSkip = org.junit.AssumptionViolatedException
 
+// Keep this boundary independent of SkipLib: SkipLib depends on SkipUnit for its tests.
+// Boxed JVM Float/Double.equals distinguishes signed zeros and makes NaN reflexive;
+// Swift Equatable uses IEEE equality even when assertions receive erased/optional values.
+private fun assertionEquals(a: Any?, b: Any?): Boolean = when (a) {
+    is Double -> b is Double && a.toDouble() == b.toDouble()
+    is Float -> b is Float && a.toFloat() == b.toFloat()
+    else -> a == b
+}
+
+private fun assertEquality(a: Any?, b: Any?, equal: Boolean, message: (() -> String)? = null) {
+    if (assertionEquals(a, b) != equal) {
+        val diagnostic = message?.invoke() ?: if (equal) "expected:<$b> but was:<$a>" else "Values should be different. Actual: $a"
+        org.junit.Assert.fail(diagnostic)
+    }
+}
+
+private fun assertAccuracy(a: Double, b: Double, accuracy: Double, message: String? = null) {
+    // Native XCTest accepts exact equality regardless of tolerance, and uses its magnitude.
+    if (!(a == b || kotlin.math.abs(a - b) <= kotlin.math.abs(accuracy))) {
+        org.junit.Assert.fail(message ?: "expected:<$b> but was:<$a> (accuracy <$accuracy>)")
+    }
+}
+
+private fun assertAccuracy(a: Float, b: Float, accuracy: Float, message: String? = null) {
+    if (!(a == b || kotlin.math.abs(a - b) <= kotlin.math.abs(accuracy))) {
+        org.junit.Assert.fail(message ?: "expected:<$b> but was:<$a> (accuracy <$accuracy>)")
+    }
+}
+
 /// Mimics the API of `XCTest` for a JUnit 4 test.
 ///
 /// Behavior difference: JUnit `assert*` thows an exception, but `XCTAssert*` just reports the failure and continues
@@ -56,22 +85,22 @@ interface XCTestCase {
     fun XCTAssertNotIdentical(a: Any?, b: Any?): Unit = org.junit.Assert.assertNotSame(b, a)
     fun XCTAssertNotIdentical(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertNotSame(msg, b, a)
 
-    fun XCTAssertEqual(a: Any?, b: Any?): Unit = org.junit.Assert.assertEquals(b, a)
-    fun XCTAssertEqual(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertEquals("${a} is not equal to ${b} – " + msg, b, a)
+    fun XCTAssertEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, true)
+    fun XCTAssertEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, true) { "${a} is not equal to ${b} – " + msg }
 
-    fun XCTAssertNotEqual(a: Any?, b: Any?): Unit = org.junit.Assert.assertNotEquals(b, a)
-    fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertNotEquals(msg, b, a)
+    fun XCTAssertNotEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, false)
+    fun XCTAssertNotEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, false) { msg }
 
-	fun <T : Comparable<T>> XCTAssertEqual(a: T?, b: T?): Unit = org.junit.Assert.assertTrue("${a} != ${b}", a == b)
-	fun <T : Comparable<T>> XCTAssertEqual(a: T?, b: T?, msg: String): Unit = org.junit.Assert.assertTrue(msg, a == b)
-	fun <T : Comparable<T>> XCTAssertNotEqual(a: T?, b: T?): Unit = org.junit.Assert.assertFalse("${a} == ${b}", a == b)
-	fun <T : Comparable<T>> XCTAssertNotEqual(a: T?, b: T?, msg: String): Unit = org.junit.Assert.assertFalse(msg, a == b)
+	fun <T : Comparable<T>> XCTAssertEqual(a: T?, b: T?): Unit = assertEquality(a, b, true) { "${a} != ${b}" }
+	fun <T : Comparable<T>> XCTAssertEqual(a: T?, b: T?, msg: String): Unit = assertEquality(a, b, true) { msg }
+	fun <T : Comparable<T>> XCTAssertNotEqual(a: T?, b: T?): Unit = assertEquality(a, b, false) { "${a} == ${b}" }
+	fun <T : Comparable<T>> XCTAssertNotEqual(a: T?, b: T?, msg: String): Unit = assertEquality(a, b, false) { msg }
 
-	fun XCTAssertEqual(a: Double, b: Double, accuracy: Double): Unit = org.junit.Assert.assertEquals(b, a, accuracy)
-	fun XCTAssertEqual(a: Double, b: Double, accuracy: Double, msg: String): Unit = org.junit.Assert.assertEquals(msg, b, a, accuracy)
+	fun XCTAssertEqual(a: Double, b: Double, accuracy: Double): Unit = assertAccuracy(a, b, accuracy)
+	fun XCTAssertEqual(a: Double, b: Double, accuracy: Double, msg: String): Unit = assertAccuracy(a, b, accuracy, msg)
 
-	fun XCTAssertEqual(a: Float, b: Float, accuracy: Float): Unit = org.junit.Assert.assertEquals(b, a, accuracy)
-	fun XCTAssertEqual(a: Float, b: Float, accuracy: Float, msg: String): Unit = org.junit.Assert.assertEquals(msg, b, a, accuracy)
+	fun XCTAssertEqual(a: Float, b: Float, accuracy: Float): Unit = assertAccuracy(a, b, accuracy)
+	fun XCTAssertEqual(a: Float, b: Float, accuracy: Float, msg: String): Unit = assertAccuracy(a, b, accuracy, msg)
 
     fun <T : Comparable<T>> XCTAssertGreaterThan(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !> ${b}", a > b)
     fun <T : Comparable<T>> XCTAssertGreaterThan(a: T, b: T, msg: String): Unit = org.junit.Assert.assertTrue(msg, a > b)
@@ -103,10 +132,26 @@ interface XCTestCase {
     fun XCTAssertNotIdentical(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertNotSame(b(), a())
     fun XCTAssertNotIdentical(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertNotSame(msg(), b(), a())
 
-    fun XCTAssertEqual(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertEquals(b(), a())
-    fun XCTAssertEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertEquals(msg(), b(), a())
-    fun XCTAssertNotEqual(a: () -> Any?, b: () -> Any?) = org.junit.Assert.assertNotEquals(b(), a())
-    fun XCTAssertNotEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) = org.junit.Assert.assertNotEquals(msg(), b(), a())
+    fun XCTAssertEqual(a: () -> Any?, b: () -> Any?) {
+        val left = a()
+        val right = b()
+        assertEquality(left, right, true)
+    }
+    fun XCTAssertEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) {
+        val left = a()
+        val right = b()
+        assertEquality(left, right, true, msg)
+    }
+    fun XCTAssertNotEqual(a: () -> Any?, b: () -> Any?) {
+        val left = a()
+        val right = b()
+        assertEquality(left, right, false)
+    }
+    fun XCTAssertNotEqual(a: () -> Any?, b: () -> Any?, msg: () -> String) {
+        val left = a()
+        val right = b()
+        assertEquality(left, right, false, msg)
+    }
 
 	fun measure(block: () -> Unit) = block()
 }
@@ -119,15 +164,15 @@ fun expectTrue(a: Boolean, msg: String): Unit = org.junit.Assert.assertTrue(msg,
 fun expectFalse(a: Boolean): Unit = org.junit.Assert.assertFalse(a)
 fun expectFalse(a: Boolean, msg: String): Unit = org.junit.Assert.assertFalse(msg, a)
 
-fun expectEqual(a: Any?, b: Any?): Unit = org.junit.Assert.assertEquals(b, a)
-fun expectEqual(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertEquals("${a} is not equal to ${b} – " + msg, b, a)
-fun <T : Comparable<T>> expectEqual(a: T?, b: T?): Unit = org.junit.Assert.assertTrue("${a} != ${b}", a == b)
-fun <T : Comparable<T>> expectEqual(a: T?, b: T?, msg: String): Unit = org.junit.Assert.assertTrue(msg, a == b)
+fun expectEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, true)
+fun expectEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, true) { "${a} is not equal to ${b} – " + msg }
+fun <T : Comparable<T>> expectEqual(a: T?, b: T?): Unit = assertEquality(a, b, true) { "${a} != ${b}" }
+fun <T : Comparable<T>> expectEqual(a: T?, b: T?, msg: String): Unit = assertEquality(a, b, true) { msg }
 
-fun expectNotEqual(a: Any?, b: Any?): Unit = org.junit.Assert.assertNotEquals(b, a)
-fun expectNotEqual(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertNotEquals(msg, b, a)
-fun <T : Comparable<T>> expectNotEqual(a: T?, b: T?): Unit = org.junit.Assert.assertFalse("${a} == ${b}", a == b)
-fun <T : Comparable<T>> expectNotEqual(a: T?, b: T?, msg: String): Unit = org.junit.Assert.assertFalse(msg, a == b)
+fun expectNotEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, false)
+fun expectNotEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, false) { msg }
+fun <T : Comparable<T>> expectNotEqual(a: T?, b: T?): Unit = assertEquality(a, b, false) { "${a} == ${b}" }
+fun <T : Comparable<T>> expectNotEqual(a: T?, b: T?, msg: String): Unit = assertEquality(a, b, false) { msg }
 
 fun <T : Comparable<T>> expectGreaterThan(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !> ${b}", a > b)
 fun <T : Comparable<T>> expectGreaterThan(a: T, b: T, msg: String): Unit = org.junit.Assert.assertTrue(msg, a > b)
@@ -158,13 +203,13 @@ fun <T : Throwable> expectThrows(`throws`: kotlin.reflect.KClass<T>, block: () -
 fun requireTrue(a: Boolean): Unit = org.junit.Assert.assertTrue(a)
 fun requireTrue(a: Boolean, msg: String): Unit = org.junit.Assert.assertTrue(msg, a)
 
-fun requireEqual(a: Any?, b: Any?): Unit = org.junit.Assert.assertEquals(b, a)
-fun requireEqual(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertEquals("${a} is not equal to ${b} – " + msg, b, a)
-fun <T : Comparable<T>> requireEqual(a: T?, b: T?): Unit = org.junit.Assert.assertTrue("${a} != ${b}", a == b)
-fun <T : Comparable<T>> requireEqual(a: T?, b: T?, msg: String): Unit = org.junit.Assert.assertTrue(msg, a == b)
+fun requireEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, true)
+fun requireEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, true) { "${a} is not equal to ${b} – " + msg }
+fun <T : Comparable<T>> requireEqual(a: T?, b: T?): Unit = assertEquality(a, b, true) { "${a} != ${b}" }
+fun <T : Comparable<T>> requireEqual(a: T?, b: T?, msg: String): Unit = assertEquality(a, b, true) { msg }
 
-fun requireNotEqual(a: Any?, b: Any?): Unit = org.junit.Assert.assertNotEquals(b, a)
-fun requireNotEqual(a: Any?, b: Any?, msg: String): Unit = org.junit.Assert.assertNotEquals(msg, b, a)
+fun requireNotEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, false)
+fun requireNotEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, false) { msg }
 
 fun <T : Comparable<T>> requireGreaterThan(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !> ${b}", a > b)
 fun <T : Comparable<T>> requireGreaterThanOrEqual(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !>= ${b}", a >= b)

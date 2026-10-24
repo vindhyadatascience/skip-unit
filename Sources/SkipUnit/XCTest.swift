@@ -13,6 +13,11 @@ public func XCTAssertNil(_ a: Any?, _ msg: String = "") {
 }
 public func XCTAssertNotNil(_ a: Any?, _ msg: String = "") {
 }
+// Match the existing eager Kotlin overloads while preserving Swift's generic
+// nonoptional result and throwing call contract in exported type metadata.
+public func XCTUnwrap<T>(_ value: T?, _ msg: String = "") throws -> T {
+    return value!
+}
 public func XCTAssertIdentical<T>(_ a: T?, _ b: T?, _ msg: String = "") {
 }
 public func XCTAssertNotIdentical<T>(_ a: T?, _ b: T?, _ msg: String = "") {
