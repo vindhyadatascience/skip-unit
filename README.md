@@ -2,6 +2,15 @@
 
 Base Skip gradle plugin module and unit testing for [Skip](https://skip.dev) apps, adapting Swift XCUnit to transpiled Kotlin JUnit test cases.
 
+## Vindhya Data Science fork
+
+This is Vindhya Data Science's public fork of [skiptools/skip-unit](https://github.com/skiptools/skip-unit),
+carrying GeneFox patches on the `vds/1.7.2` branch. Releases are tagged `1.7.2-vds.N`, a SemVer
+prerelease, so each is a distinct version. The older `+vds.N` tags are kept, but SwiftPM ignores
+build metadata, so to it they are the same version as the upstream tag. The manifest declares its
+Skip dependencies with upstream's version ranges. Consumers mirror the skiptools URLs to these
+forks and pin every fork to an exact revision in their root package and lockfile.
+
 ## About
 
 SkipUnit vends the `skip.unit` Kotlin package containing a Swift `XCTest` interface to the Java/Kotlin `JUnit` testing framework.
