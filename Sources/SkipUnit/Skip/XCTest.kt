@@ -14,7 +14,10 @@ typealias XCTSkip = org.junit.AssumptionViolatedException
 private fun assertionEquals(a: Any?, b: Any?): Boolean = when (a) {
     is Double -> b is Double && a.toDouble() == b.toDouble()
     is Float -> b is Float && a.toFloat() == b.toFloat()
-    else -> a == b
+    // JUnit's assertEquals(expected, actual), which this replaces, asks the EXPECTED value. Keep
+    // that receiver: an array-literal expectation compares by contents against a Set or slice
+    // result (RNABrowser-fiea.28: two GeneFox tests depended on it).
+    else -> b == a
 }
 
 private fun assertEquality(a: Any?, b: Any?, equal: Boolean, message: (() -> String)? = null) {
@@ -212,9 +215,13 @@ fun requireNotEqual(a: Any?, b: Any?): Unit = assertEquality(a, b, false)
 fun requireNotEqual(a: Any?, b: Any?, msg: String): Unit = assertEquality(a, b, false) { msg }
 
 fun <T : Comparable<T>> requireGreaterThan(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !> ${b}", a > b)
+fun <T : Comparable<T>> requireGreaterThan(a: T, b: T, msg: String): Unit = org.junit.Assert.assertTrue(msg, a > b)
 fun <T : Comparable<T>> requireGreaterThanOrEqual(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !>= ${b}", a >= b)
+fun <T : Comparable<T>> requireGreaterThanOrEqual(a: T, b: T, msg: String): Unit = org.junit.Assert.assertTrue(msg, a >= b)
 fun <T : Comparable<T>> requireLessThan(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !< ${b}", a < b)
+fun <T : Comparable<T>> requireLessThan(a: T, b: T, msg: String): Unit = org.junit.Assert.assertTrue(msg, a < b)
 fun <T : Comparable<T>> requireLessThanOrEqual(a: T, b: T): Unit = org.junit.Assert.assertTrue("${a} !<= ${b}", a <= b)
+fun <T : Comparable<T>> requireLessThanOrEqual(a: T, b: T, msg: String): Unit = org.junit.Assert.assertTrue(msg, a <= b)
 
 fun <T> requireNotNil(a: T?): T { org.junit.Assert.assertNotNull(a); return a!! }
 fun <T> requireNotNil(a: T?, msg: String): T { org.junit.Assert.assertNotNull(msg, a); return a!! }
