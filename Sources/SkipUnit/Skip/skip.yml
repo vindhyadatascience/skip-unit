@@ -169,7 +169,7 @@ build:
             # doesn't like, such as unchecked casts and @Suppress("MUST_BE_INITIALIZED")
             - 'suppressWarnings = true'
             - 'jvmTargetValidationMode = org.jetbrains.kotlin.gradle.dsl.jvm.JvmTargetValidationMode.WARNING'
-            - 'jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(libs.versions.jvm.get().toString())'
+            - 'jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(libs.versions.jvm.get())'
 
     - block: 'publishing'
       contents:
